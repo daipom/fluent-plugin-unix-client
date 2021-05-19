@@ -1,8 +1,7 @@
 # fluent-plugin-unix-client
 
-[Fluentd](https://fluentd.org/) input plugin to do something.
-
-TODO: write description for you plugin.
+[Fluentd](https://fluentd.org/) input plugin to receive data from UNIX domain socket.  
+This is a **client version** of [the default `unix` plugin](https://docs.fluentd.org/input/unix).
 
 ## Installation
 
@@ -28,13 +27,44 @@ $ bundle
 
 ## Configuration
 
-You can generate configuration template:
+### tag (string) (required)
+
+Tag of output events.
+
+### path (string) (required)
+
+The path to Unix Domain Socket.
+
+Note: This is a client side application, so you need to set the path which **is opened by another server side application**. 
+
+### parse (section) (required)
+
+This plugin use Fluentd parser plugin as a helper.  
+See [Config: Parse Section](https://docs.fluentd.org/configuration/parse-section).
+
+## Sample
 
 ```
-$ fluent-plugin-config-format input unix_client
+<source>
+  @type unix_client
+  tag debug.unix_client
+  path /tmp/unix.sock
+  <parse>
+    @type json
+  </parse>
+</source>
+
+<match debug.**>
+  @type stdout
+</match>
 ```
 
-You can copy and paste generated documents here.
+## Specification
+
+* This recieves data from UNIX domain socket which **is opened by another application**.
+  * If you need other applications to send data to the socket you opened, you can use [the default `unix` plugin](https://docs.fluentd.org/input/unix).
+* If this can't connect to the socket, this trys to reconnect later.
+* Newline code `\n` is recognized as record separators.
 
 ## Copyright
 
