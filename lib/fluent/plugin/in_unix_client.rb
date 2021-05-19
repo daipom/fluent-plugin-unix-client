@@ -21,7 +21,7 @@ module Fluent
     class UnixClientInput < Fluent::Plugin::Input
       Fluent::Plugin.register_input("unix_client", self)
 
-      helpers :thread
+      helpers :thread, :parser
 
       desc 'Tag of output events.'
       config_param :tag, :string
@@ -30,7 +30,8 @@ module Fluent
 
       def configure(conf)
         super
-        @socket_handler = SocketHandler.new(@path, nil, log)
+        @parser = parser_create
+        @socket_handler = SocketHandler.new(@path, log)
       end
 
       def start
@@ -41,9 +42,11 @@ module Fluent
       def keep_receiving
         while thread_current_running?
           begin
-            record = @socket_handler.try_receive
-            next if record.nil?
-            router.emit(@tag, Fluent::Engine.now, record)
+            raw_data = @socket_handler.try_receive
+            next if raw_data.nil?
+            @parser.parse(raw_data) do |time, record|
+              router.emit(@tag, time, record)
+            end
           rescue => e
             log.error "in_unix_client: error occurred. #{e}"
           end
@@ -57,9 +60,8 @@ module Fluent
     class SocketHandler
       MAX_SLEEPING_SECONDS = 600
 
-      def initialize(path, parser, log)
+      def initialize(path, log)
         @path = path
-        @parser = parser
         @log = log
         @socket = nil
       end
@@ -70,15 +72,15 @@ module Fluent
 
       def try_receive
         block_until_succeed_to_open unless connected?
-        raw_data = try_gets
+        data = try_gets
 
-        if raw_data.nil?
+        if data.nil?
           @log&.warn "in_unix_client: server socket seems to be closed."
           try_close
           return nil
         end
 
-        parse(raw_data)
+        data
       end
 
       def try_close
@@ -119,12 +121,6 @@ module Fluent
           sleep sleeping_seconds
           sleeping_seconds = [2 * sleeping_seconds, MAX_SLEEPING_SECONDS].min
         end
-      end
-
-      def parse(record)
-        return nil if record.nil?
-        # TODO
-        record
       end
     end
   end
