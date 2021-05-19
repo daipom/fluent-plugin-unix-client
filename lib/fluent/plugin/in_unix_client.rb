@@ -26,7 +26,7 @@ module Fluent
       desc 'Tag of output events.'
       config_param :tag, :string
       desc 'The path to Unix Domain Socket.'
-      config_param :path, :string, default: nil
+      config_param :path, :string
 
       def configure(conf)
         super
