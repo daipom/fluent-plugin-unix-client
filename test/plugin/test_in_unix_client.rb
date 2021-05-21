@@ -9,6 +9,13 @@ require_relative "./unix_server.rb"
 class UnixClientInputTest < Test::Unit::TestCase
   def setup
     Fluent::Test.setup
+    @thread = nil
+  end
+
+  def teardown
+    @thread.kill if @thread
+    @thread = nil
+    FileUtils.rm_rf(TMP_DIR)
   end
 
   TMP_DIR = File.dirname(__FILE__) + "/../tmp/socket"
@@ -31,12 +38,7 @@ class UnixClientInputTest < Test::Unit::TestCase
     d = create_driver(config_with_json_parser)
     path = d.instance.path
 
-    Thread.new do
-      server = UnixBroadcastServer.new(path)
-      server.run
-    end
-
-    sleep 1
+    start_server(path)
 
     cur_time = Time.now.to_i
 
@@ -66,6 +68,14 @@ class UnixClientInputTest < Test::Unit::TestCase
         @type json
       </parse>
     !
+  end
+
+  def start_server(path)
+    @thread = Thread.new do
+      server = UnixBroadcastServer.new(path)
+      server.run
+    end
+    sleep 1
   end
 
   def send_json(path, time: nil, msg: DEFAULT_MSG)
