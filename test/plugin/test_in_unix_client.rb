@@ -11,7 +11,7 @@ class UnixClientInputTest < Test::Unit::TestCase
     Fluent::Test.setup
   end
 
-  TMP_DIR = File.dirname(__FILE__) + "/../tmp/socket}"
+  TMP_DIR = File.dirname(__FILE__) + "/../tmp/socket"
 
   BASE_CONFIG = %[
     @type unix_client
