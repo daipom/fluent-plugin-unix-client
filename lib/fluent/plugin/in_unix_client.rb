@@ -42,45 +42,59 @@ module Fluent
       def keep_receiving
         while thread_current_running?
           begin
-            raw_data = @socket_handler.try_receive
-            next if raw_data.nil?
-            @parser.parse(raw_data) do |time, record|
-              router.emit(@tag, time, record)
-            end
+            receive_and_emit
           rescue => e
             log.error "in_unix_client: error occurred. #{e}"
+            sleep 3
           end
         end
       ensure
         @socket_handler.try_close
       end
+
+      def receive_and_emit
+        raw_records = @socket_handler.try_receive
+        return if raw_records.nil? || raw_records.empty?
+
+        raw_records.each do |raw_record|
+          @parser.parse(raw_record) do |time, record|
+            router.emit(@tag, time, record)
+          end
+        end
+      end
     end
 
 
     class SocketHandler
-      MAX_SLEEPING_SECONDS = 600
+      MAX_LENGTH_RECEIVE_ONCE = 10000
 
       def initialize(path, log)
         @path = path
         @log = log
         @socket = nil
+        @buf = Buffer.new("\n")
       end
 
       def connected?
         !@socket.nil?
       end
 
-      def try_receive
-        block_until_succeed_to_open unless connected?
-        data = try_gets
+      def try_receive(timeout: 1)
+        unless connected?
+          try_open
+          return []
+        end
+        return [] unless exist_data?(timeout)
 
-        if data.nil?
+        records, has_closed = try_get_records
+
+        if has_closed
           @log&.warn "in_unix_client: server socket seems to be closed."
           try_close
-          return nil
+          return []
         end
 
-        data
+        records
       end
 
       def try_close
@@ -99,28 +113,58 @@ module Fluent
       rescue => e
         @log&.warn "in_unix_client: failed to open socket: #{@path}, due to: #{e.message}"
         @socket = nil
+        sleep 3
       end
 
-      def try_gets
-        @socket.gets
+      def exist_data?(timeout)
+        return true if IO::select([@socket], nil, nil, timeout)
+        false
+      end
+
+      def try_get_records
+        msg, * = @socket.recvmsg_nonblock(MAX_LENGTH_RECEIVE_ONCE)
+        has_closed = msg.empty?
+        return [], has_closed if has_closed
+
+        @buf << msg
+        records = @buf.extract_records
+        return records, has_closed
+      rescue IO::WaitReadable => e
+        @log&.debug "in_unix_client: there were no data though the socket was recognized readable by IO::select. #{e.message}"
+        sleep 3
       rescue => e
         @log&.error "in_unix_client: failed to receive data. #{e.message}"
-        try_close
-        block_until_succeed_to_open
-        sleep 10
-        retry
+        sleep 3
+      end
+    end
+
+
+    class Buffer
+      def initialize(delimiter)
+        @buf = ""
+        @delimiter = delimiter
       end
 
-      def block_until_succeed_to_open
-        sleeping_seconds = 10
+      def add(data)
+        @buf << data
+      end
 
-        loop do
-          try_open
-          break if connected?
-          @log&.warn "in_unix_client: retry to open socket #{sleeping_seconds}s later."
-          sleep sleeping_seconds
-          sleeping_seconds = [2 * sleeping_seconds, MAX_SLEEPING_SECONDS].min
+      def <<(data)
+        add(data)
+      end
+
+      def extract_records
+        records = []
+
+        pos_read = 0
+        while pos_next_delimiter = @buf.index(@delimiter, pos_read)
+          records << @buf[pos_read...pos_next_delimiter]
+          pos_read = pos_next_delimiter + @delimiter.size
         end
+
+        @buf.slice!(0, pos_read) if pos_read > 0
+
+        records
       end
     end
   end
