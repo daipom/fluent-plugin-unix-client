@@ -71,7 +71,6 @@ Default value: `"\n"` (newline).
 * This recieves data from UNIX domain socket which **is opened by another application**.
   * If you need other applications to send data to the socket you opened, you can use [the default `unix` plugin](https://docs.fluentd.org/input/unix).
 * If this can't connect to the socket, this trys to reconnect later.
-* Newline code `\n` is recognized as record separators.
 
 ## Copyright
 
