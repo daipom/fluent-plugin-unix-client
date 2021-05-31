@@ -27,11 +27,13 @@ module Fluent
       config_param :tag, :string
       desc 'The path to Unix Domain Socket.'
       config_param :path, :string
+      desc 'The payload is read up to this character.'
+      config_param :delimiter, :string, default: "\n"
 
       def configure(conf)
         super
         @parser = parser_create
-        @socket_handler = SocketHandler.new(@path, log)
+        @socket_handler = SocketHandler.new(@path, delimiter: @delimiter, log: log)
       end
 
       def start
@@ -68,11 +70,11 @@ module Fluent
     class SocketHandler
       MAX_LENGTH_RECEIVE_ONCE = 10000
 
-      def initialize(path, log)
+      def initialize(path, delimiter: "\n", log: nil)
         @path = path
         @log = log
         @socket = nil
-        @buf = Buffer.new("\n")
+        @buf = Buffer.new(delimiter)
       end
 
       def connected?

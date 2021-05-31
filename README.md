@@ -42,6 +42,12 @@ Note: This is a client side application, so you need to set the path which **is 
 This plugin use Fluentd parser plugin as a helper.  
 See [Config: Parse Section](https://docs.fluentd.org/configuration/parse-section).
 
+### delimiter (string) (optional)
+
+The payload is read up to this character.
+
+Default value: `"\n"` (newline).
+
 ## Sample
 
 ```
@@ -52,6 +58,7 @@ See [Config: Parse Section](https://docs.fluentd.org/configuration/parse-section
   <parse>
     @type json
   </parse>
+  delimiter "\n"
 </source>
 
 <match debug.**>
