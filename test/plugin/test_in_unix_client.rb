@@ -9,12 +9,11 @@ require_relative "./unix_server.rb"
 class UnixClientInputTest < Test::Unit::TestCase
   def setup
     Fluent::Test.setup
-    @thread = nil
+    @server_thread = nil
   end
 
   def teardown
-    @thread.kill if @thread
-    @thread = nil
+    stop_server
     FileUtils.rm_rf(TMP_DIR)
   end
 
@@ -125,11 +124,19 @@ class UnixClientInputTest < Test::Unit::TestCase
   end
 
   def start_server(path)
-    @thread = Thread.new do
+    @server_thread = Thread.new do
       server = UnixBroadcastServer.new(path)
       server.run
     end
     sleep 1
+  end
+
+  def stop_server
+    if @server_thread
+      @server_thread.kill if @server_thread
+      @server_thread.join
+      @server_thread = nil
+    end
   end
 
   def send_json(path, time: nil, msg: DEFAULT_MSG, delimiter: "\n")
