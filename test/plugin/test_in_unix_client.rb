@@ -99,6 +99,67 @@ class UnixClientInputTest < Test::Unit::TestCase
     end
   end
 
+  def test_receive_json_list
+    d = create_driver(config_with_json_parser)
+    path = d.instance.path
+    delimiter = "\n"
+
+    msgs = ["hoge", "fuga", "foo"]
+
+    start_server(path)
+
+    d.run(expect_records: 3, timeout: 10) do
+      sleep 1
+      UNIXSocket.open(path) do |sock|
+        sock.write("[")
+        sock.write(JSON.generate(raw_data(msg: msgs[0])))
+        sock.write(",")
+        sock.write(delimiter)
+
+        sock.write(JSON.generate(raw_data(msg: msgs[1])))
+        sock.write(",")
+        sock.write(delimiter)
+
+        sock.write(JSON.generate(raw_data(msg: msgs[2])))
+        sock.write(delimiter)
+        sock.write("]")
+        sock.write(delimiter)
+      end
+    end
+
+    assert_equal 3, d.events.length
+
+    d.events.each_with_index do |event, i|
+      assert_equal msgs[i], event[2]["msg"]
+    end
+  end
+
+  def test_receive_json_list_with_one_delimiter
+    d = create_driver(config_with_json_parser)
+    path = d.instance.path
+    delimiter = "\n"
+
+    msgs = ["hoge", "fuga", "foo"]
+
+    start_server(path)
+
+    d.run(expect_records: 3, timeout: 10) do
+      sleep 1
+      data = msgs.map {|msg| raw_data(msg: msg)}
+
+      UNIXSocket.open(path) do |sock|
+        sock.write(JSON.generate(data))
+        sock.write(delimiter)
+      end
+    end
+
+    assert_equal 3, d.events.length
+
+    d.events.each_with_index do |event, i|
+      assert_equal msgs[i], event[2]["msg"]
+    end
+  end
+
   private
 
   def create_driver(conf)
@@ -140,15 +201,17 @@ class UnixClientInputTest < Test::Unit::TestCase
   end
 
   def send_json(path, time: nil, msg: DEFAULT_MSG, delimiter: "\n")
-    msg = JSON.generate(
-      {
-        "time" => time.nil? ? Time.now.to_i : time,
-        "msg" => msg
-      }
-    )
+    msg = JSON.generate(raw_data(time: time, msg: msg))
     UNIXSocket.open(path) do |sock|
       sock.write(msg)
       sock.write(delimiter)
     end
+  end
+
+  def raw_data(time: nil, msg: DEFAULT_MSG)
+    {
+      "time" => time.nil? ? Time.now.to_i : time,
+      "msg" => msg
+    }
   end
 end
