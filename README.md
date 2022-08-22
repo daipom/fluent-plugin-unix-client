@@ -48,7 +48,19 @@ The payload is read up to this character.
 
 Default value: `"\n"` (newline).
 
+### format_json (bool) (optional)
+
+When recieved JSON data splitted by the delimiter is not completed, like '[{...},', trim '[', ']' and ',' characters to format.
+
+Please see `Sample` below for details.
+
+Default value: false.
+
 ## Sample
+
+### For JSON
+
+Config:
 
 ```
 <source>
@@ -64,6 +76,53 @@ Default value: `"\n"` (newline).
 <match debug.**>
   @type stdout
 </match>
+```
+
+Assumed Data:
+
+* ndjson
+```
+{"key":0}\n
+{"key":0}\n
+...
+```
+
+* JSON list
+```
+[{"key":0}, {"key":0}, ...]\n
+[{"key":0}, {"key":0}, ...]\n
+...
+```
+
+### Use `format_json`
+
+Config:
+
+```
+<source>
+  @type unix_client
+  tag debug.unix_client
+  path /tmp/unix.sock
+  <parse>
+    @type json
+  </parse>
+  delimiter "\n"
+  format_json true
+</source>
+
+<match debug.**>
+  @type stdout
+</match>
+```
+
+Assumed Data:
+
+```
+[{"key":0},\n
+{"key":0},\n
+...
+{"key":0}]\n
+...
 ```
 
 ## Specification

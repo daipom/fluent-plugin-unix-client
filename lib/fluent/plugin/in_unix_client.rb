@@ -15,6 +15,7 @@
 
 require "fluent/plugin/input"
 require 'socket'
+require "json"
 
 module Fluent
   module Plugin
@@ -29,11 +30,19 @@ module Fluent
       config_param :path, :string
       desc 'The payload is read up to this character.'
       config_param :delimiter, :string, default: "\n"
+      desc "When recieved JSON data splitted by the delimiter is not completed, like '[{...},'," \
+           " trim '[', ']' and ',' characters to format."
+      config_param :format_json, :bool, default: false
 
       def configure(conf)
         super
         @parser = parser_create
-        @socket_handler = SocketHandler.new(@path, delimiter: @delimiter, for_json: @parser.is_a?(JSONParser), log: log)
+        @socket_handler = SocketHandler.new(
+          @path,
+          delimiter: @delimiter,
+          format_json: @format_json,
+          log: log,
+        )
       end
 
       def start
@@ -83,11 +92,11 @@ module Fluent
     class SocketHandler
       MAX_LENGTH_RECEIVE_ONCE = 10000
 
-      def initialize(path, delimiter: "\n", for_json: false, log: nil)
+      def initialize(path, delimiter: "\n", format_json: false, log: nil)
         @path = path
         @log = log
         @socket = nil
-        @buf = Buffer.new(delimiter, for_json: for_json)
+        @buf = Buffer.new(delimiter, format_json: format_json)
       end
 
       def connected?
@@ -155,10 +164,10 @@ module Fluent
 
 
     class Buffer
-      def initialize(delimiter, for_json: false)
+      def initialize(delimiter, format_json: false)
         @buf = ""
         @delimiter = delimiter
-        @for_json = for_json
+        @format_json = format_json
       end
 
       def add(data)
@@ -188,27 +197,35 @@ module Fluent
 
       def fix_format(record)
         return record if record.empty?
-        return record unless @for_json
+        return record unless @format_json
 
-        fix_for_json_list_structure(record)
+        fix_uncompleted_json(record)
       end
 
-      def fix_for_json_list_structure(record)
-        if record[0] == "[".freeze && record[-1] == "]".freeze
-          return record
-        end
+      def fix_uncompleted_json(record)
+        return record if is_correct_json(record)
 
-        if record[0] == "[".freeze
+        # Assume uncompleted JSON such as "[{...},", "{...},", or "{...}]"
+
+        if record[0] == "["
           record.slice!(0)
           return record if record.empty?
         end
 
-        if record[-1] == ",".freeze || record[-1] == "]".freeze
+        if record[-1] == "," || record[-1] == "]"
           record.slice!(-1)
           return record if record.empty?
         end
 
         record
+      end
+
+      def is_correct_json(record)
+        # Just to check the format
+        JSON.parse(record)
+        return true
+      rescue JSON::ParserError
+        return false
       end
     end
   end

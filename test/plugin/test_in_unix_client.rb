@@ -31,6 +31,14 @@ class UnixClientInputTest < Test::Unit::TestCase
     d = create_driver(config_with_json_parser)
     assert_equal "unix_client", d.instance.tag
     assert_equal "#{TMP_DIR}/socket.sock", d.instance.path
+    assert_equal false, d.instance.format_json
+  end
+
+  def test_configure_with_format_json
+    d = create_driver(config_with_json_parser_and_format_json)
+    assert_equal "unix_client", d.instance.tag
+    assert_equal "#{TMP_DIR}/socket.sock", d.instance.path
+    assert_equal true, d.instance.format_json
   end
 
   def test_receive_json
@@ -100,7 +108,7 @@ class UnixClientInputTest < Test::Unit::TestCase
   end
 
   def test_receive_json_list
-    d = create_driver(config_with_json_parser)
+    d = create_driver(config_with_json_parser_and_format_json)
     path = d.instance.path
     delimiter = "\n"
 
@@ -135,7 +143,7 @@ class UnixClientInputTest < Test::Unit::TestCase
   end
 
   def test_receive_json_list_with_one_delimiter
-    d = create_driver(config_with_json_parser)
+    d = create_driver(config_with_json_parser_and_format_json)
     path = d.instance.path
     delimiter = "\n"
 
@@ -178,6 +186,15 @@ class UnixClientInputTest < Test::Unit::TestCase
     BASE_CONFIG + %[
       delimiter \"#{delimiter}\"
     ] + %!
+      <parse>
+        @type json
+      </parse>
+    !
+  end
+
+  def config_with_json_parser_and_format_json
+    BASE_CONFIG + %!
+      format_json true
       <parse>
         @type json
       </parse>
